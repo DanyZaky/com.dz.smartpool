@@ -8,7 +8,7 @@ Designed for maximum developer ergonomics: no tedious scene setup, no manual man
 ---
 
 ### Quick Navigation
-[Key Features](#key-features) | [Installation](#installation) | [Quick Start](#quick-start) | [Changelog](CHANGELOG.md) | [Compatibility](#compatibility) | [License](#license)
+[Key Features](#key-features) | [Installation](#installation) | [Quick Start](#quick-start) | [Benchmark](BENCHMARK.md) | [Changelog](CHANGELOG.md) | [Compatibility](#compatibility) | [License](#license)
 
 ---
 
@@ -78,7 +78,7 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
 <a id="performance"></a>
 ### 5. High Performance, Memory & Prewarming
 - **Zero GC Allocations at Steady State**:
-  - Components (`IPoolable`, `Rigidbody`, `TrailRenderer`, `ParticleSystem`) are cached once upon initial instantiation. Zero runtime `GetComponent`, LINQ, or boxing allocations occur during steady-state `Spawn` and `Despawn` reuse cycles. (Initial instantiation, prewarming allocations, and user-supplied lambda closures are naturally excluded).
+  - Components (`IPoolable`, `Rigidbody`, `TrailRenderer`, `ParticleSystem`) are cached once upon initial instantiation. Zero runtime `GetComponent`, LINQ, or boxing allocations occur during steady-state `Spawn` and `Despawn` reuse cycles. (Initial instantiation, prewarming allocations, and user-supplied lambda closures are naturally excluded). Empirically verified via Unity Test Runner PlayMode tests (see [BENCHMARK.md](BENCHMARK.md)).
 - **Stack-Based Architecture ($O(1)$)**:
   - Internal `Stack<GameObject>` guarantees optimal push/pop performance.
 - **Prewarming API**:
