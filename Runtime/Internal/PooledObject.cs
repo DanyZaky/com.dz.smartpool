@@ -75,9 +75,12 @@ namespace DZ.SmartPool
         /// <summary>
         /// Called immediately before returning to pool.
         /// Triggers IPoolable.OnDespawn and cancels any pending auto-despawn timer.
+        /// Strictly idempotent: runs at most once per spawn cycle.
         /// </summary>
         public void OnDespawn()
         {
+            if (!IsSpawned) return;
+
             if (_timer != null)
             {
                 _timer.Cancel();

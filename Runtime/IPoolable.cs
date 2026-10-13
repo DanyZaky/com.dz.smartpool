@@ -7,8 +7,8 @@ namespace DZ.SmartPool
     public interface IPoolable
     {
         /// <summary>
-        /// Called immediately when the object is retrieved from the pool and activated.
-        /// Use this to initialize gameplay state, timers, health, or effects.
+        /// Called immediately before the object is activated in the scene (while still inactive, right before OnEnable).
+        /// Use this to initialize gameplay state, timers, health, or effects so that OnEnable reads fresh, clean data.
         /// </summary>
         void OnSpawn();
 

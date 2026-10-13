@@ -156,6 +156,7 @@ namespace DZ.SmartPool
             {
                 // Fallback safety: non-pooled object is destroyed without throwing errors
                 onComplete?.Invoke();
+                instance.SetActive(false);
                 UnityEngine.Object.Destroy(instance);
                 return;
             }
@@ -167,15 +168,16 @@ namespace DZ.SmartPool
                 return;
             }
 
-            if (pooledObj.Pool != null)
+            if (pooledObj.Pool == null || pooledObj.Pool.IsDisposed)
             {
-                pooledObj.Pool.Despawn(instance, pooledObj, onComplete);
-            }
-            else
-            {
+                pooledObj.OnDespawn();
                 onComplete?.Invoke();
+                instance.SetActive(false);
                 UnityEngine.Object.Destroy(instance);
+                return;
             }
+
+            pooledObj.Pool.Despawn(instance, pooledObj, onComplete);
         }
 
         /// <summary>
@@ -393,11 +395,12 @@ namespace DZ.SmartPool
         /// </summary>
         public void ClearPool(GameObject prefab)
         {
+            if (prefab == null) return;
             int prefabId = prefab.GetInstanceID();
             if (_pools.TryGetValue(prefabId, out var pool))
             {
-                pool.Clear();
                 _pools.Remove(prefabId);
+                pool.Clear();
             }
         }
 
@@ -406,11 +409,12 @@ namespace DZ.SmartPool
         /// </summary>
         public void ClearAllPools()
         {
-            foreach (var kvp in _pools)
-            {
-                kvp.Value.Clear();
-            }
+            var poolList = new List<ObjectPool>(_pools.Values);
             _pools.Clear();
+            for (int i = 0; i < poolList.Count; i++)
+            {
+                poolList[i].Clear();
+            }
         }
 
         /// <summary>
@@ -434,6 +438,11 @@ namespace DZ.SmartPool
             /// </summary>
             public bool IsSceneLocal { get; set; } = false;
 
+            /// <summary>
+            /// Indicates whether this pool has been disposed and cleared from registry.
+            /// </summary>
+            public bool IsDisposed { get; private set; }
+
             private readonly Stack<GameObject> _stack = new Stack<GameObject>();
 
             public ObjectPool(GameObject prefab, Transform parentRoot)
@@ -442,6 +451,7 @@ namespace DZ.SmartPool
                 PrefabId = prefab.GetInstanceID();
                 DefaultScale = prefab.transform.localScale;
                 DefaultRotation = prefab.transform.localRotation;
+                IsDisposed = false;
 
                 var containerGo = new GameObject($"[Pool] {prefab.name}");
                 containerGo.transform.SetParent(parentRoot, false);
@@ -453,6 +463,8 @@ namespace DZ.SmartPool
             /// </summary>
             public void Prewarm(int count)
             {
+                if (IsDisposed) return;
+
                 for (int i = 0; i < count; i++)
                 {
                     if (MaxCapacity > 0 && _stack.Count >= MaxCapacity)
@@ -471,6 +483,12 @@ namespace DZ.SmartPool
             /// </summary>
             public GameObject Spawn(Vector3 position, Quaternion rotation, Transform parent)
             {
+                if (IsDisposed)
+                {
+                    Debug.LogError($"[SmartPool] Cannot spawn from disposed pool for prefab '{Prefab.name}'.");
+                    return null;
+                }
+
                 GameObject instance = null;
 
                 // Pop until we find a valid instance (in case an object was destroyed externally)
@@ -498,23 +516,40 @@ namespace DZ.SmartPool
                 instanceTransform.position = position;
                 instanceTransform.rotation = rotation;
 
-                instance.SetActive(true);
-
+                // Reset and notify lifecycle while instance is still inactive
                 var pooledObj = instance.GetComponent<PooledObject>();
                 if (pooledObj != null)
                 {
                     pooledObj.OnSpawn();
                 }
 
+                // Activate instance: Unity triggers Awake / OnEnable with completely fresh and reset state
+                instance.SetActive(true);
+
                 return instance;
             }
 
             /// <summary>
             /// Returns an instance to the pool stack.
+            /// If pool is disposed, destroys the instance cleanly without touching the destroyed root container.
             /// If pool exceeds MaxCapacity, safely destroys extra instance to prevent memory bloat.
             /// </summary>
             public void Despawn(GameObject instance, PooledObject pooledObj, Action onComplete = null)
             {
+                if (instance == null) return;
+
+                if (IsDisposed)
+                {
+                    if (pooledObj != null && pooledObj.IsSpawned)
+                    {
+                        pooledObj.OnDespawn();
+                    }
+                    onComplete?.Invoke();
+                    instance.SetActive(false);
+                    UnityEngine.Object.Destroy(instance);
+                    return;
+                }
+
                 pooledObj.OnDespawn();
                 onComplete?.Invoke();
 
@@ -525,7 +560,10 @@ namespace DZ.SmartPool
                     return;
                 }
 
-                instance.transform.SetParent(RootContainer, false);
+                if (RootContainer != null)
+                {
+                    instance.transform.SetParent(RootContainer, false);
+                }
                 instance.SetActive(false);
 
                 _stack.Push(instance);
@@ -533,9 +571,13 @@ namespace DZ.SmartPool
 
             /// <summary>
             /// Destroys all pooled instances in this pool and removes container.
+            /// Strictly idempotent.
             /// </summary>
             public void Clear()
             {
+                if (IsDisposed) return;
+                IsDisposed = true;
+
                 while (_stack.Count > 0)
                 {
                     var instance = _stack.Pop();
@@ -555,6 +597,7 @@ namespace DZ.SmartPool
             {
                 var instance = UnityEngine.Object.Instantiate(Prefab, RootContainer);
                 instance.name = Prefab.name;
+                instance.SetActive(false);
 
                 var pooledObj = instance.GetComponent<PooledObject>();
                 if (pooledObj == null)

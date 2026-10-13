@@ -78,20 +78,30 @@ namespace DZ.SmartPool
             var callback = _onComplete;
             _onComplete = null;
 
+            // Check if object was already destroyed externally
+            if (this == null || gameObject == null) return;
+
             if (_pooledObject != null)
             {
                 // Verify spawn token and active state to ensure timer belongs to current spawn cycle
                 if (_pooledObject.IsSpawned && _pooledObject.SpawnToken == _expectedToken)
                 {
                     callback?.Invoke();
-                    SmartPool.Despawn(gameObject);
+                    // Re-verify that callback did not destroy or already despawn the object
+                    if (this != null && gameObject != null && _pooledObject.IsSpawned && _pooledObject.SpawnToken == _expectedToken)
+                    {
+                        SmartPool.Despawn(gameObject);
+                    }
                 }
             }
             else
             {
                 // Fallback for non-pooled object
                 callback?.Invoke();
-                Destroy(gameObject);
+                if (this != null && gameObject != null)
+                {
+                    Destroy(gameObject);
+                }
             }
         }
 
