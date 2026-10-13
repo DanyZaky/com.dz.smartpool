@@ -95,6 +95,31 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
 
 ---
 
+## 📥 Installation
+
+### Option 1: Unity Package Manager (UPM via Git URL)
+1. In the Unity Editor, open **Window** > **Package Manager**.
+2. Click the **+** (Add) button in the top-left toolbar and select **Add package from git URL...**
+3. Enter the following URL:
+   ```text
+   https://github.com/DanyZaky/com.dz.smartpool.git
+   ```
+4. Click **Add**. Unity will automatically install and configure SmartPool.
+
+Alternatively, add the dependency directly to your project's `Packages/manifest.json`:
+```json
+{
+  "dependencies": {
+    "com.dz.smartpool": "https://github.com/DanyZaky/com.dz.smartpool.git"
+  }
+}
+```
+
+### Option 2: Unity Asset Store
+- **Unity Asset Store**: Coming Soon
+
+---
+
 ## 🚀 Quick Start & Usage Examples
 
 ### 1. Spawning Objects
