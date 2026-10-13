@@ -52,7 +52,7 @@ namespace DZ.SmartPool
         {
             if (prefab == null || count <= 0) return;
             var pool = SmartPoolManager.Instance.GetOrCreatePool(prefab);
-            if (maxCapacity > 0)
+            if (maxCapacity >= 0)
             {
                 pool.MaxCapacity = maxCapacity;
             }
@@ -103,6 +103,46 @@ namespace DZ.SmartPool
         {
             if (prefab == null) return;
             SetSceneLocal(prefab.gameObject, isSceneLocal);
+        }
+
+        /// <summary>
+        /// Gets the number of currently idle (inactive) instances cached in the pool for the given prefab.
+        /// Returns 0 if no pool exists for this prefab.
+        /// </summary>
+        public static int GetIdleCount(GameObject prefab)
+        {
+            if (prefab == null || !SmartPoolManager.HasInstance) return 0;
+            return SmartPoolManager.Instance.GetIdleCount(prefab);
+        }
+
+        /// <summary>
+        /// Gets the number of currently idle (inactive) instances cached in the pool for the given component prefab.
+        /// Returns 0 if no pool exists for this prefab.
+        /// </summary>
+        public static int GetIdleCount<T>(T prefab) where T : Component
+        {
+            if (prefab == null) return 0;
+            return GetIdleCount(prefab.gameObject);
+        }
+
+        /// <summary>
+        /// Gets the maximum capacity of idle instances for the given prefab's pool.
+        /// Returns -1 if unlimited or if no pool exists yet.
+        /// </summary>
+        public static int GetCapacity(GameObject prefab)
+        {
+            if (prefab == null || !SmartPoolManager.HasInstance) return -1;
+            return SmartPoolManager.Instance.GetCapacity(prefab);
+        }
+
+        /// <summary>
+        /// Gets the maximum capacity of idle instances for the given component prefab's pool.
+        /// Returns -1 if unlimited or if no pool exists yet.
+        /// </summary>
+        public static int GetCapacity<T>(T prefab) where T : Component
+        {
+            if (prefab == null) return -1;
+            return GetCapacity(prefab.gameObject);
         }
 
         #endregion
@@ -456,6 +496,35 @@ namespace DZ.SmartPool
         }
 
         /// <summary>
+        /// Gets the count of idle instances currently waiting in stack for the given prefab.
+        /// </summary>
+        public int GetIdleCount(GameObject prefab)
+        {
+            if (prefab == null) return 0;
+            int prefabId = prefab.GetInstanceID();
+            if (_pools.TryGetValue(prefabId, out var pool))
+            {
+                return pool.IdleCount;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Gets the maximum capacity limit for the given prefab's pool.
+        /// Returns -1 if unlimited or if pool does not exist.
+        /// </summary>
+        public int GetCapacity(GameObject prefab)
+        {
+            if (prefab == null) return -1;
+            int prefabId = prefab.GetInstanceID();
+            if (_pools.TryGetValue(prefabId, out var pool))
+            {
+                return pool.MaxCapacity;
+            }
+            return -1;
+        }
+
+        /// <summary>
         /// Internal pool structure managing a Stack of inactive instances for O(1) retrieval.
         /// </summary>
         internal class ObjectPool
@@ -466,10 +535,26 @@ namespace DZ.SmartPool
             public Vector3 DefaultScale { get; }
             public Quaternion DefaultRotation { get; }
 
+            private int _maxCapacity = -1;
+
             /// <summary>
             /// Maximum number of inactive instances held in pool. -1 means unlimited.
+            /// When reduced, immediately trims excess idle instances from the stack.
             /// </summary>
-            public int MaxCapacity { get; set; } = -1;
+            public int MaxCapacity
+            {
+                get => _maxCapacity;
+                set
+                {
+                    _maxCapacity = value < 0 ? -1 : value;
+                    TrimExcess();
+                }
+            }
+
+            /// <summary>
+            /// Number of idle instances currently held in the pool stack.
+            /// </summary>
+            public int IdleCount => _stack.Count;
 
             /// <summary>
             /// When true, this pool is cleared when any scene is unloaded.
@@ -498,19 +583,44 @@ namespace DZ.SmartPool
             }
 
             /// <summary>
-            /// Prewarms pool by creating count inactive instances.
+            /// Trims excess idle instances from the stack if current idle count exceeds MaxCapacity.
+            /// </summary>
+            private void TrimExcess()
+            {
+                if (_maxCapacity < 0) return;
+
+                while (_stack.Count > _maxCapacity)
+                {
+                    var instance = _stack.Pop();
+                    if (instance != null)
+                    {
+                        instance.SetActive(false);
+                        UnityEngine.Object.Destroy(instance);
+                    }
+                }
+            }
+
+            /// <summary>
+            /// Prewarms pool by creating count inactive instances up to MaxCapacity.
             /// </summary>
             public void Prewarm(int count)
             {
-                if (IsDisposed) return;
+                if (IsDisposed || count <= 0) return;
+                if (_maxCapacity == 0) return;
 
-                for (int i = 0; i < count; i++)
+                int targetCount = count;
+                if (_maxCapacity > 0)
                 {
-                    if (MaxCapacity > 0 && _stack.Count >= MaxCapacity)
+                    int availableSlots = _maxCapacity - _stack.Count;
+                    if (availableSlots <= 0) return;
+                    if (targetCount > availableSlots)
                     {
-                        break;
+                        targetCount = availableSlots;
                     }
+                }
 
+                for (int i = 0; i < targetCount; i++)
+                {
                     var instance = CreateNewInstance();
                     instance.SetActive(false);
                     _stack.Push(instance);
@@ -594,9 +704,10 @@ namespace DZ.SmartPool
                 pooledObj.OnDespawn();
                 SmartPool.InvokeOnCompleteSafe(onComplete);
 
-                // Capacity limit check: destroy extra instance if pool is already at capacity
-                if (MaxCapacity > 0 && _stack.Count >= MaxCapacity)
+                // Capacity limit check: destroy extra instance if pool is already at capacity (or MaxCapacity == 0)
+                if (_maxCapacity >= 0 && _stack.Count >= _maxCapacity)
                 {
+                    instance.SetActive(false);
                     UnityEngine.Object.Destroy(instance);
                     return;
                 }

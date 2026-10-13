@@ -268,6 +268,40 @@ namespace DZ.SmartPool
             return prefab;
         }
 
+        /// <summary>
+        /// Gets the number of currently idle (inactive) instances cached in the pool for this GameObject prefab.
+        /// </summary>
+        public static int GetPoolIdleCount(this GameObject prefab)
+        {
+            return SmartPool.GetIdleCount(prefab);
+        }
+
+        /// <summary>
+        /// Gets the number of currently idle (inactive) instances cached in the pool for this component prefab.
+        /// </summary>
+        public static int GetPoolIdleCount<T>(this T prefab) where T : Component
+        {
+            return SmartPool.GetIdleCount(prefab);
+        }
+
+        /// <summary>
+        /// Gets the maximum capacity of idle instances for this GameObject prefab's pool.
+        /// Returns -1 if unlimited or if no pool exists yet.
+        /// </summary>
+        public static int GetPoolCapacity(this GameObject prefab)
+        {
+            return SmartPool.GetCapacity(prefab);
+        }
+
+        /// <summary>
+        /// Gets the maximum capacity of idle instances for this component prefab's pool.
+        /// Returns -1 if unlimited or if no pool exists yet.
+        /// </summary>
+        public static int GetPoolCapacity<T>(this T prefab) where T : Component
+        {
+            return SmartPool.GetCapacity(prefab);
+        }
+
         #endregion
     }
 }
