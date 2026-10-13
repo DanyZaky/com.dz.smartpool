@@ -86,13 +86,19 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
     ```csharp
     bulletPrefab.Prewarm(100);
     ```
-- **Pool Capacity Limiter (Anti-Memory Leak)**:
+- **Pool Capacity Limiter & Dynamic Trimming**:
   - Cap maximum idle objects in the pool:
     ```csharp
     bulletPrefab.SetPoolCapacity(150);
     ```
+  - Lowering capacity immediately trims and destroys excess idle objects in the pool stack.
   - When returning an object to a pool that is already at capacity, excess instances are destroyed cleanly instead of hoarding memory.
-- **Pool Trimming**:
+- **Zero-Cache Mode**:
+  - Setting capacity to 0 (`bulletPrefab.SetPoolCapacity(0)`) disables caching completely. Objects still execute `OnDespawn()` and completion callbacks per lifecycle contract, then are destroyed immediately without entering the pool stack.
+- **Pool Inspection & Query APIs**:
+  - Query currently idle (cached) instances: `prefab.GetPoolIdleCount()` or `SmartPool.GetIdleCount(prefab)`.
+  - Query maximum capacity limit: `prefab.GetPoolCapacity()` or `SmartPool.GetCapacity(prefab)`.
+- **Pool Trimming & Clearing**:
   - Clear a specific pool: `SmartPool.Clear(prefab);`
   - Clear all pools: `SmartPool.ClearAll();`
 

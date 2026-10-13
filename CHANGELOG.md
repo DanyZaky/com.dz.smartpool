@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Delayed auto-despawn chaining: `.DespawnAfter(delay)` with unscaled time support and safe cancellation.
 - Completion action callbacks on `Despawn` and `DespawnAfter`.
 - Stack-based ($O(1)$) internal pooling architecture.
-- Prewarming API: `prefab.Prewarm(count, maxCapacity)`.
-- Pool capacity limiter to prevent memory leaks by destroying excess idle instances.
+- Prewarming API: `prefab.Prewarm(count, maxCapacity)` with capacity slot clamping.
+- Pool capacity limiter with dynamic trimming: immediately destroys excess idle instances when capacity is reduced.
+- Zero-cache mode (`MaxCapacity = 0`): strictly disables caching while maintaining full lifecycle contracts.
+- Query APIs: `GetIdleCount()` and `GetCapacity()` on `SmartPool` and fluent prefab extensions.
 - Safety fallback to `Destroy()` for non-pooled objects and double-despawn guards.
 - Hierarchy visibility toggle via `SmartPool.ShowInHierarchy`.
 - Scene unload handling: persistent pools by default, optional scene-local pools via `SetSceneLocal`, and global auto-clear via `SmartPool.AutoClearOnSceneChange`.
