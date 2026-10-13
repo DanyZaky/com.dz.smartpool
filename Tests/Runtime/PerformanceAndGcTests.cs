@@ -93,8 +93,9 @@ namespace DZ.SmartPool.Tests
             SmartPool.Prewarm(_complexPrefab, count);
             long prewarmBytes = GC.GetAllocatedBytesForCurrentThread() - allocBeforePrewarm;
 
-            Debug.Log($"[GC Categorization] Prewarm ({count} complex instances): {prewarmBytes:N0} bytes allocated.");
-            Assert.IsTrue(prewarmBytes > 0, "Prewarming must allocate memory for initial GameObject instantiation.");
+            Debug.Log($"[GC Categorization] Prewarm ({count} complex instances): {prewarmBytes:N0} bytes managed GC allocated (native objects created in Unity C++ engine heap).");
+            Assert.IsTrue(prewarmBytes >= 0, "Prewarm managed GC should be non-negative.");
+            Assert.AreEqual(count, SmartPool.GetIdleCount(_complexPrefab), "Prewarm must successfully create and cache the requested idle objects.");
 
             // 2. Warm-up pass
             var warm = _complexPrefab.Spawn();
