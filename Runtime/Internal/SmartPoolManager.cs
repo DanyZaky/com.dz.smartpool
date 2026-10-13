@@ -155,29 +155,41 @@ namespace DZ.SmartPool
             if (pooledObj == null)
             {
                 // Fallback safety: non-pooled object is destroyed without throwing errors
-                onComplete?.Invoke();
+                InvokeOnCompleteSafe(onComplete);
                 instance.SetActive(false);
                 UnityEngine.Object.Destroy(instance);
                 return;
             }
 
-            if (!pooledObj.IsSpawned)
+            if (!pooledObj.IsSpawned || pooledObj.IsDespawning)
             {
-                // Double-despawn guard
-                Debug.LogWarning($"[SmartPool] Object '{instance.name}' is already despawned / returned to pool. Despawn call ignored.", instance);
+                // Double-despawn and re-entrancy guard
                 return;
             }
 
             if (pooledObj.Pool == null || pooledObj.Pool.IsDisposed)
             {
                 pooledObj.OnDespawn();
-                onComplete?.Invoke();
+                InvokeOnCompleteSafe(onComplete);
                 instance.SetActive(false);
                 UnityEngine.Object.Destroy(instance);
                 return;
             }
 
             pooledObj.Pool.Despawn(instance, pooledObj, onComplete);
+        }
+
+        internal static void InvokeOnCompleteSafe(Action onComplete)
+        {
+            if (onComplete == null) return;
+            try
+            {
+                onComplete();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+            }
         }
 
         /// <summary>
@@ -271,6 +283,25 @@ namespace DZ.SmartPool
         private static bool _isQuitting;
 
         private readonly Dictionary<int, ObjectPool> _pools = new Dictionary<int, ObjectPool>();
+        private Transform _stagingContainer;
+
+        /// <summary>
+        /// Dedicated inactive staging transform used during Instantiate() to prevent premature Awake / OnEnable on active prefabs.
+        /// </summary>
+        public Transform StagingContainer
+        {
+            get
+            {
+                if (_stagingContainer == null)
+                {
+                    var stagingGo = new GameObject("[SmartPool_Staging]");
+                    stagingGo.transform.SetParent(transform, false);
+                    stagingGo.SetActive(false);
+                    _stagingContainer = stagingGo.transform;
+                }
+                return _stagingContainer;
+            }
+        }
 
         /// <summary>
         /// Returns true if an active instance exists without triggering instantiation.
@@ -455,6 +486,7 @@ namespace DZ.SmartPool
 
                 var containerGo = new GameObject($"[Pool] {prefab.name}");
                 containerGo.transform.SetParent(parentRoot, false);
+                containerGo.SetActive(false);
                 RootContainer = containerGo.transform;
             }
 
@@ -521,6 +553,8 @@ namespace DZ.SmartPool
                 if (pooledObj != null)
                 {
                     pooledObj.OnSpawn();
+                    // Re-apply caller requested rotation in case ResetComponents restored DefaultLocalRotation
+                    instanceTransform.rotation = rotation;
                 }
 
                 // Activate instance: Unity triggers Awake / OnEnable with completely fresh and reset state
@@ -540,18 +574,18 @@ namespace DZ.SmartPool
 
                 if (IsDisposed)
                 {
-                    if (pooledObj != null && pooledObj.IsSpawned)
+                    if (pooledObj != null && pooledObj.IsSpawned && !pooledObj.IsDespawning)
                     {
                         pooledObj.OnDespawn();
                     }
-                    onComplete?.Invoke();
+                    SmartPool.InvokeOnCompleteSafe(onComplete);
                     instance.SetActive(false);
                     UnityEngine.Object.Destroy(instance);
                     return;
                 }
 
                 pooledObj.OnDespawn();
-                onComplete?.Invoke();
+                SmartPool.InvokeOnCompleteSafe(onComplete);
 
                 // Capacity limit check: destroy extra instance if pool is already at capacity
                 if (MaxCapacity > 0 && _stack.Count >= MaxCapacity)
@@ -595,9 +629,15 @@ namespace DZ.SmartPool
 
             private GameObject CreateNewInstance()
             {
-                var instance = UnityEngine.Object.Instantiate(Prefab, RootContainer);
+                var staging = SmartPoolManager.Instance.StagingContainer;
+                var instance = UnityEngine.Object.Instantiate(Prefab, staging);
                 instance.name = Prefab.name;
                 instance.SetActive(false);
+
+                if (RootContainer != null)
+                {
+                    instance.transform.SetParent(RootContainer, false);
+                }
 
                 var pooledObj = instance.GetComponent<PooledObject>();
                 if (pooledObj == null)

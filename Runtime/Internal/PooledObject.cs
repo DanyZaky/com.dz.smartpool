@@ -15,6 +15,7 @@ namespace DZ.SmartPool
         public Vector3 DefaultLocalScale { get; private set; }
         public Quaternion DefaultLocalRotation { get; private set; }
         public bool IsSpawned { get; private set; }
+        public bool IsDespawning { get; private set; }
         public int SpawnToken { get; private set; }
         public SmartPoolManager.ObjectPool Pool { get; private set; }
 
@@ -35,6 +36,7 @@ namespace DZ.SmartPool
             DefaultLocalRotation = defaultRotation;
             Pool = pool;
             IsSpawned = false;
+            IsDespawning = false;
             SpawnToken = 0;
 
             // Cache all lifecycle and resettable components once to guarantee zero GC during gameplay
@@ -58,16 +60,24 @@ namespace DZ.SmartPool
         public void OnSpawn()
         {
             IsSpawned = true;
+            IsDespawning = false;
             SpawnToken++;
 
             ResetComponents();
 
-            // Trigger IPoolable lifecycle hooks
+            // Trigger IPoolable lifecycle hooks safely
             for (int i = 0; i < _poolables.Length; i++)
             {
                 if (_poolables[i] != null)
                 {
-                    _poolables[i].OnSpawn();
+                    try
+                    {
+                        _poolables[i].OnSpawn();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogException(ex);
+                    }
                 }
             }
         }
@@ -75,26 +85,40 @@ namespace DZ.SmartPool
         /// <summary>
         /// Called immediately before returning to pool.
         /// Triggers IPoolable.OnDespawn and cancels any pending auto-despawn timer.
-        /// Strictly idempotent: runs at most once per spawn cycle.
+        /// Strictly idempotent and protected against re-entrant calls: runs at most once per spawn cycle.
         /// </summary>
         public void OnDespawn()
         {
-            if (!IsSpawned) return;
+            if (!IsSpawned || IsDespawning) return;
 
-            if (_timer != null)
+            IsDespawning = true;
+            try
             {
-                _timer.Cancel();
-            }
-
-            for (int i = 0; i < _poolables.Length; i++)
-            {
-                if (_poolables[i] != null)
+                if (_timer != null)
                 {
-                    _poolables[i].OnDespawn();
+                    _timer.Cancel();
+                }
+
+                for (int i = 0; i < _poolables.Length; i++)
+                {
+                    if (_poolables[i] != null)
+                    {
+                        try
+                        {
+                            _poolables[i].OnDespawn();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogException(ex);
+                        }
+                    }
                 }
             }
-
-            IsSpawned = false;
+            finally
+            {
+                IsSpawned = false;
+                IsDespawning = false;
+            }
         }
 
         /// <summary>
@@ -113,8 +137,9 @@ namespace DZ.SmartPool
         /// </summary>
         public void ResetComponents()
         {
-            // Reset local scale to prefab default
+            // Reset local scale and local rotation to prefab default
             transform.localScale = DefaultLocalScale;
+            transform.localRotation = DefaultLocalRotation;
 
             // Reset 3D physics velocities (supporting Unity 2021.3 LTS through Unity 6)
             for (int i = 0; i < _rigidbodies.Length; i++)
