@@ -1,124 +1,201 @@
 # SmartPool for Unity
 
-Zero-setup, zero-garbage-collection (Zero GC), fluent extension-based object pooling for Unity.
-Dirancang dengan ergonomi dan filosofi ala **DOTween** — memangkas boilerplate, tanpa setup manager manual di scene, dan berkinerja tinggi ($O(1)$ stack performance).
+A lightning-fast, zero-setup, zero-garbage-collection (Zero GC) object pooling solution for Unity.
+
+Designed for maximum developer ergonomics: no tedious scene setup, no manual manager prefabs to drag into scenes, and zero boilerplate. Just drop it in and use fluent C# extension methods right from your prefabs and instances.
 
 ---
 
-## ✨ Fitur Lengkap
+## ✨ Key Features
 
-### 1. Core API & Ergonomi (Gaya DOTween)
-- **Extension Methods Langsung**:
-  - `prefab.Spawn()` pengganti `Instantiate()`.
-  - `instance.Despawn()` pengganti `Destroy()`.
-- **Generics Support Penuh**:
-  - `bulletPrefab.Spawn<Bullet>()` langsung mengembalikan tipe `Bullet` (tanpa `GetComponent` manual atau casting).
-- **Overload Fleksibel**:
-  - `prefab.Spawn()`, `prefab.Spawn(position)`, `prefab.Spawn(position, rotation)`, `prefab.Spawn(position, rotation, parent)`.
-- **Zero-Setup Initialization**:
-  - Tidak perlu pasang prefab manager di scene atau setup manual. Root manager `[SmartPool_Root]` dibuat otomatis di background dengan status `DontDestroyOnLoad`.
+### 1. Core API & Ergonomics
+- **Drop-in Extension Methods**:
+  - `prefab.Spawn()` — seamless replacement for `Instantiate()`.
+  - `instance.Despawn()` — seamless replacement for `Destroy()`.
+- **Full Generic Support**:
+  - `bulletPrefab.Spawn<Bullet>()` returns the `Bullet` component directly without type casting or manual `GetComponent` calls.
+- **Flexible Overloads**:
+  - `prefab.Spawn()`, `prefab.Spawn(position)`, `prefab.Spawn(position, rotation)`, and `prefab.Spawn(position, rotation, parent)`.
+- **Zero-Setup Out-of-the-Box**:
+  - No manager prefabs to drag into your scenes and no singleton scripts to wire up. The root manager `[SmartPool_Root]` is automatically created behind the scenes on first use with `DontDestroyOnLoad`.
 
-### 2. Auto Component Reset (Anti-State Leakage)
-Saat objek diambil dari pool, sistem otomatis mengembalikan state komponen ke kondisi bersih:
-- **Physics Reset**: `Rigidbody` & `Rigidbody2D` velocity dan angular velocity di-reset ke nol (kompatibel penuh Unity 2021.3 LTS s/d Unity 6).
-- **Visual FX Reset**: `TrailRenderer` otomatis memanggil `Clear()` (mencegah efek trail menyilang layar dari posisi lama). `ParticleSystem` otomatis `Clear()` dan `Play()`.
-- **Transform Consistency**: `localScale` dan rotasi dipastikan kembali ke nilai default bawaan prefab.
+### 2. Automatic Component Reset (Anti-State Leakage)
+When an object is retrieved from the pool, SmartPool automatically restores its default state to prevent stale data bugs:
+- **Physics Reset**: `Rigidbody` and `Rigidbody2D` linear/angular velocities are reset to zero (fully compatible from Unity 2021.3 LTS through Unity 6 without obsolete warnings).
+- **Visual FX Reset**: `TrailRenderer` automatically calls `Clear()` to prevent trails from streaking across the screen from their previous positions. `ParticleSystem` automatically calls `Clear()` and `Play()`.
+- **Transform Consistency**: Automatically restores `localScale` and rotation to the original prefab defaults.
 
 ### 3. Lifecycle Hooks & Event Callbacks
-- **Interface `IPoolable`**:
-  - `OnSpawn()`: Dipanggil tepat setelah objek keluar dari pool dan aktif.
-  - `OnDespawn()`: Dipanggil sebelum objek dinonaktifkan dan kembali ke pool.
-- **Event Action Callback**:
-  - Callback instan saat despawn tanpa perlu interface:
-    `instance.Despawn(onComplete: () => { ... });`
-    `instance.DespawnAfter(3.0f, onComplete: () => { ... });`
+- **`IPoolable` Interface**:
+  - `OnSpawn()`: Triggered immediately when retrieved from pool and activated (ideal for resetting health, re-initializing AI, etc.).
+  - `OnDespawn()`: Triggered immediately before returning to the pool (ideal for detaching targets or unhooking events).
+- **Inline Action Callbacks**:
+  - Hook into despawn events directly without creating custom scripts or interfaces:
+    ```csharp
+    instance.Despawn(onComplete: () => { /* custom cleanup */ });
+    ```
 
 ### 4. Smart Timers & Delayed Despawn
-- **One-Liner Auto-Despawn**:
+- **Fluent One-Liner Chaining**:
   - `prefab.Spawn(pos, rot).DespawnAfter(3.0f);`
 - **Safe Timer Cancellation**:
-  - Jika objek terkena peluru/rintangan sebelum durasi timer habis dan dipanggil `.Despawn()` manual, timer otomatis dibatalkan via generational token sehingga **tidak akan terjadi double-despawn**.
-- **Support Unscaled Time**:
-  - Opsi timer yang kebal terhadap `Time.timeScale` (misal untuk UI/menu jeda):
-    `obj.DespawnAfter(3.0f, useUnscaledTime: true);`
+  - If an object hits an obstacle or gets manually despawned before the countdown expires, the scheduled timer is automatically cancelled via generational tokens. No accidental double-despawn bugs.
+- **Unscaled Time Support**:
+  - Support for timers that ignore `Time.timeScale` (e.g., UI elements or pause menu effects):
+    ```csharp
+    effect.DespawnAfter(2.0f, useUnscaledTime: true);
+    ```
 
-### 5. Performance, Memory & Prewarming
-- **Prewarm API**:
-  - `bulletPrefab.Prewarm(100);` atau dengan batas kapasitas: `bulletPrefab.Prewarm(100, maxCapacity: 200);`
-- **Stack-Based Architecture ($O(1)$ Zero-GC)**:
-  - Menggunakan `Stack<GameObject>` internal. Semua komponen dicache saat instansiasi pertama, bebas GC allocations saat gameplay.
+### 5. High Performance, Memory & Prewarming
+- **Zero GC Allocations**:
+  - Components (`IPoolable`, `Rigidbody`, `TrailRenderer`, `ParticleSystem`) are cached once upon initial instantiation. No runtime `GetComponent` or LINQ allocations during gameplay.
+- **Stack-Based Architecture ($O(1)$)**:
+  - Internal `Stack<GameObject>` guarantees optimal push/pop performance.
+- **Prewarming API**:
+  - Instantiate objects ahead of time to avoid gameplay hitches:
+    ```csharp
+    bulletPrefab.Prewarm(100);
+    ```
 - **Pool Capacity Limiter (Anti-Memory Leak)**:
-  - Batasi kapasitas maksimal per prefab: `bulletPrefab.SetPoolCapacity(200);`
-  - Jika objek yang di-despawn melebihi batas kapasitas, objek ekstra otomatis di-`Destroy` biasa agar memori RAM tidak bengkak.
+  - Cap maximum idle objects in the pool:
+    ```csharp
+    bulletPrefab.SetPoolCapacity(150);
+    ```
+  - When returning an object to a pool that is already at capacity, excess instances are destroyed cleanly instead of hoarding memory.
 - **Pool Trimming**:
-  - Bersihkan pool tertentu: `SmartPool.Clear(prefab);`
-  - Bersihkan semua pool: `SmartPool.ClearAll();`
+  - Clear a specific pool: `SmartPool.Clear(prefab);`
+  - Clear all pools: `SmartPool.ClearAll();`
 
-### 6. Safety & Debugging
-- **Fallback Safety (Anti-Crash)**:
-  - Jika user memanggil `.Despawn()` pada objek yang tidak sengaja dibuat lewat `Instantiate()` biasa, sistem otomatis melakukan fallback ke `Destroy()` biasa tanpa error.
+### 6. Safety & Hierarchy Organization
+- **Crash-Proof Fallback**:
+  - If `.Despawn()` is mistakenly called on an object created via regular `Instantiate()`, SmartPool gracefully falls back to `Destroy()` without throwing errors.
 - **Double-Despawn Guard**:
-  - Mencegah objek dimasukkan ke pool dua kali secara tidak sengaja.
-- **Editor Hierarchy Organization**:
-  - Semua objek nonaktif diparkir rapi di bawah container `[SmartPool_Root]` -> `[Pool] <PrefabName>`.
-  - **Hierarchy Visibility Toggle**:
-    - Sembunyikan/tampilkan container di jendela Hierarchy Unity kapan saja:
-      `SmartPool.ShowInHierarchy = false; // Menggunakan HideFlags.HideInHierarchy`
+  - Prevents returning an already-despawned object back into the pool.
+- **Clean Hierarchy by Default**:
+  - Inactive objects are neatly organized under `[SmartPool_Root] -> [Pool] <PrefabName>`.
+- **Hierarchy Visibility Toggle**:
+  - Hide or show pool containers in the Unity Hierarchy window with a single line of code:
+    ```csharp
+    SmartPool.ShowInHierarchy = false; // Uses HideFlags.HideInHierarchy
+    ```
 
-### 7. Modern Unity Integration
-- **Assembly Definition (`DZ.SmartPool.Runtime.asmdef`)**:
-  - Terisolasi rapi, tidak memperlambat kompilasi kode game utama.
-- **Scene Unload Handling**:
-  - Default: Pool persisten antar-scene (`DontDestroyOnLoad`).
-  - Opsi global auto-clear saat ganti scene: `SmartPool.AutoClearOnSceneChange = true;`
-  - Atau opsi per-prefab: `bulletPrefab.SetSceneLocal(true);`
+### 7. Scene Unload Policies
+- **Persistent by Default**:
+  - Pools persist across scene loads (`DontDestroyOnLoad`).
+- **Scene-Local Pools**:
+  - Automatically clear specific pools when unloading a level:
+    ```csharp
+    levelBossMinionPrefab.SetSceneLocal(true);
+    ```
+- **Global Scene Change Cleanup**:
+  - Clear all pools on scene change:
+    ```csharp
+    SmartPool.AutoClearOnSceneChange = true;
+    ```
 
 ---
 
-## 🚀 Contoh Penggunaan
+## 🚀 Quick Start & Usage Examples
 
+### 1. Spawning Objects
 ```csharp
 using UnityEngine;
 using DZ.SmartPool;
 
-public class PlayerCombat : MonoBehaviour
+public class Gun : MonoBehaviour
 {
-    [SerializeField] private Bullet bulletPrefab;
+    [SerializeField] private GameObject bulletPrefab;
+    [SerializeField] private Bullet bulletComponentPrefab;
     [SerializeField] private Transform firePoint;
-
-    private void Awake()
-    {
-        // 1. Prewarm pool di awal game dengan limit kapasitas
-        bulletPrefab.Prewarm(50, maxCapacity: 100);
-
-        // 2. Opsional: Sembunyikan container pool dari Hierarchy jika ingin tampilan bersih
-        // SmartPool.ShowInHierarchy = false;
-    }
 
     public void Shoot()
     {
-        // 3. Spawn fluent chaining dengan auto-despawn & callback
-        bulletPrefab
-            .Spawn(firePoint.position, firePoint.rotation)
-            .DespawnAfter(3.0f, onComplete: () =>
-            {
-                Debug.Log("Peluru otomatis habis masa aktifnya.");
-            });
+        // Basic spawn
+        GameObject bullet1 = bulletPrefab.Spawn();
+
+        // Spawn with position & rotation
+        GameObject bullet2 = bulletPrefab.Spawn(firePoint.position, firePoint.rotation);
+
+        // Generic spawn returning the exact Component type
+        Bullet bullet3 = bulletPrefab.Spawn<Bullet>(firePoint.position, firePoint.rotation);
+
+        // Spawn directly from a Component prefab reference
+        Bullet bullet4 = bulletComponentPrefab.Spawn(firePoint.position, firePoint.rotation);
+    }
+}
+```
+
+### 2. Despawning & Chaining
+```csharp
+// Instant manual despawn
+bullet.Despawn();
+
+// Fluent delayed auto-despawn (1 line)
+bulletPrefab
+    .Spawn(firePoint.position, firePoint.rotation)
+    .DespawnAfter(3.0f);
+
+// Delayed despawn with completion callback & unscaled time
+bulletComponentPrefab
+    .Spawn(firePoint.position, firePoint.rotation)
+    .DespawnAfter(3.0f, useUnscaledTime: true, onComplete: () =>
+    {
+        Debug.Log("Bullet expired and returned to pool!");
+    });
+```
+
+### 3. Implementing Lifecycle Hooks (`IPoolable`)
+```csharp
+using UnityEngine;
+using DZ.SmartPool;
+
+public class Bullet : MonoBehaviour, IPoolable
+{
+    private float _speed = 25f;
+
+    public void OnSpawn()
+    {
+        // Called whenever the object is fetched from the pool and enabled
+        Debug.Log("Bullet spawned and initialized!");
     }
 
-    public void OnEnemyHit(Bullet bullet)
+    public void OnDespawn()
     {
-        // 4. Despawn manual instan (timer DespawnAfter otomatis batal aman)
-        bullet.Despawn(onComplete: () =>
-        {
-            Debug.Log("Peluru mengenai musuh!");
-        });
+        // Called right before returning to the pool and being disabled
+        Debug.Log("Bullet cleaned up!");
     }
+
+    private void Update()
+    {
+        transform.Translate(Vector3.forward * (_speed * Time.deltaTime));
+    }
+}
+```
+
+### 4. Prewarming & Pool Management
+```csharp
+void Start()
+{
+    // Prewarm 100 instances ahead of time, capping max idle capacity at 150
+    bulletPrefab.Prewarm(100, maxCapacity: 150);
+
+    // Optional: Keep Unity hierarchy clean by hiding pool roots
+    SmartPool.ShowInHierarchy = false;
+}
+
+void OnDestroy()
+{
+    // Clean up memory when level finishes
+    SmartPool.Clear(bulletPrefab);
 }
 ```
 
 ---
 
-## 📦 Kompatibilitas
-- Unity 2021.3 LTS ke atas (termasuk Unity 2022, Unity 2023, dan Unity 6).
-- Bebas compiler warning (`linearVelocity` vs `velocity`).
+## 📦 Compatibility
+- **Unity Versions**: Compatible with Unity 2021.3 LTS, 2022 LTS, 2023, and Unity 6 (6000.x+).
+- **Physics APIs**: Clean cross-version compatibility for `velocity` and `linearVelocity`.
+- **Platforms**: Supports all Unity platforms (PC, Mac, Linux, iOS, Android, WebGL, Consoles).
+
+## 📄 License
+This project is licensed under the MIT License — see the [LICENSE.md](LICENSE.md) file for details.

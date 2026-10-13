@@ -4,8 +4,8 @@ using UnityEngine;
 namespace DZ.SmartPool
 {
     /// <summary>
-    /// Fluent DOTween-style extension methods for GameObject and Component pooling.
-    /// Provides zero-setup, zero-boilerplate APIs for Spawn, Despawn, DespawnAfter, Prewarm, and Capacity settings.
+    /// Fluent extension methods for GameObject and Component pooling with zero-setup ergonomics.
+    /// Provides zero-boilerplate APIs for Spawn, Despawn, DespawnAfter, Prewarm, and Capacity settings.
     /// </summary>
     public static class SmartPoolExtensions
     {

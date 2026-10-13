@@ -2,7 +2,7 @@
   "name": "com.dz.smartpool",
   "version": "1.0.0",
   "displayName": "SmartPool",
-  "description": "Zero-setup, zero-GC, fluent extension-based object pooling plugin for Unity (DOTween style).",
+  "description": "Zero-setup, zero-GC, fluent extension-based object pooling plugin for Unity.",
   "unity": "2021.3",
   "keywords": [
     "pool",
