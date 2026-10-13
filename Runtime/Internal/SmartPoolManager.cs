@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("DZ.SmartPool.Tests")]
+
 namespace DZ.SmartPool
 {
     /// <summary>
@@ -368,6 +370,11 @@ namespace DZ.SmartPool
 
         private void OnSceneUnloaded(Scene scene)
         {
+            OnSceneUnloadedInternal(scene);
+        }
+
+        internal void OnSceneUnloadedInternal(Scene scene)
+        {
             var poolsToRemove = new List<int>();
 
             foreach (var kvp in _pools)
@@ -632,11 +639,66 @@ namespace DZ.SmartPool
                 var staging = SmartPoolManager.Instance.StagingContainer;
                 var instance = UnityEngine.Object.Instantiate(Prefab, staging);
                 instance.name = Prefab.name;
+
+                // Awake Pre-pass:
+                // Ensure all MonoBehaviours have Awake() executed once so component caching (e.g. GetComponent)
+                // is complete BEFORE any IPoolable.OnSpawn() is called, while strictly suppressing premature OnEnable().
+                var behaviours = instance.GetComponentsInChildren<MonoBehaviour>(true);
+                var originallyEnabled = new bool[behaviours.Length];
+                for (int i = 0; i < behaviours.Length; i++)
+                {
+                    var mb = behaviours[i];
+                    if (mb != null)
+                    {
+                        originallyEnabled[i] = mb.enabled;
+                        mb.enabled = false;
+                    }
+                }
+
+                // Temporarily parent to the active SmartPoolManager root and activate GameObject.
+                // In Unity, when an active GameObject is in an active hierarchy:
+                // 1. Unity calls Awake() on all attached MonoBehaviours (even if enabled == false).
+                // 2. Unity DOES NOT call OnEnable() because enabled == false.
+                instance.transform.SetParent(SmartPoolManager.Instance.transform, false);
+                instance.SetActive(true);
+
+                // Silencing any native components that might react to activation:
+                var audioSources = instance.GetComponentsInChildren<AudioSource>(true);
+                for (int i = 0; i < audioSources.Length; i++)
+                {
+                    if (audioSources[i] != null && audioSources[i].isPlaying)
+                    {
+                        audioSources[i].Stop();
+                    }
+                }
+
+                var particleSystems = instance.GetComponentsInChildren<ParticleSystem>(true);
+                for (int i = 0; i < particleSystems.Length; i++)
+                {
+                    if (particleSystems[i] != null)
+                    {
+                        particleSystems[i].Clear(true);
+                        particleSystems[i].Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                    }
+                }
+
+                // Deactivate instance while in hierarchy before moving to RootContainer
                 instance.SetActive(false);
 
                 if (RootContainer != null)
                 {
                     instance.transform.SetParent(RootContainer, false);
+                }
+
+                // Restore original enabled states while instance is safely inactive in RootContainer.
+                // Because activeSelf is false, restoring enabled does not trigger OnEnable.
+                for (int i = 0; i < behaviours.Length; i++)
+                {
+                    var mb = behaviours[i];
+                    if (mb != null)
+                    {
+                        mb.enabled = originallyEnabled[i];
+                    }
                 }
 
                 var pooledObj = instance.GetComponent<PooledObject>();

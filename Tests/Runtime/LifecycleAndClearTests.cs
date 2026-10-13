@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
@@ -307,6 +308,149 @@ namespace DZ.SmartPool.Tests
             nextInstance.Despawn();
         }
 
+        [Test]
+        public void Spawn_LifecycleOrder_AwakeBeforeOnSpawnBeforeOnEnable()
+        {
+            // Create a realistic prefab with physics, collider, and child sub-component
+            var realisticPrefab = new GameObject("Realistic_Prefab");
+            realisticPrefab.AddComponent<Rigidbody>();
+            realisticPrefab.AddComponent<BoxCollider>();
+            realisticPrefab.AddComponent<TargetingSubComponent>();
+            var tracker = realisticPrefab.AddComponent<RealisticLifecycleOrderTracker>();
+
+            try
+            {
+                // First spawn: must execute Awake -> OnSpawn -> OnEnable in that exact order
+                var instance = realisticPrefab.Spawn();
+                var instanceTracker = instance.GetComponent<RealisticLifecycleOrderTracker>();
+
+                Assert.AreEqual(1, instanceTracker.AwakeCount, "Awake should run exactly once on new instance");
+                Assert.AreEqual(1, instanceTracker.OnSpawnCount, "OnSpawn should run on first spawn");
+                Assert.AreEqual(1, instanceTracker.OnEnableCount, "OnEnable should run on first spawn");
+                Assert.IsNotNull(instanceTracker.CachedSubComponent, "SubComponent cached in Awake must be available");
+                Assert.IsTrue(instanceTracker.SubComponentSawResetInOnSpawn, "SubComponent must be valid and reset inside OnSpawn");
+                Assert.IsTrue(instanceTracker.OnEnableSawCleanState, "OnEnable must observe clean reset state");
+
+                // Verify exact event ordering on first spawn: Awake -> OnSpawn -> OnEnable
+                CollectionAssert.AreEqual(
+                    new[] { "Awake", "OnSpawn", "OnEnable" },
+                    instanceTracker.ExecutionLog,
+                    "Execution order on first spawn must be Awake -> OnSpawn -> OnEnable"
+                );
+
+                // Despawn
+                instance.Despawn();
+                Assert.AreEqual("OnDespawn", instanceTracker.ExecutionLog[instanceTracker.ExecutionLog.Count - 1]);
+
+                // Second spawn (reuse from pool)
+                var reused = realisticPrefab.Spawn();
+                var reusedTracker = reused.GetComponent<RealisticLifecycleOrderTracker>();
+
+                Assert.AreEqual(1, reusedTracker.AwakeCount, "Awake must not run again on reused instance");
+                Assert.AreEqual(2, reusedTracker.OnSpawnCount, "OnSpawn runs on second spawn");
+                Assert.AreEqual(2, reusedTracker.OnEnableCount, "OnEnable runs on second spawn");
+
+                // Verify cumulative order: Awake -> OnSpawn -> OnEnable -> OnDespawn -> OnSpawn -> OnEnable
+                CollectionAssert.AreEqual(
+                    new[] { "Awake", "OnSpawn", "OnEnable", "OnDespawn", "OnSpawn", "OnEnable" },
+                    reusedTracker.ExecutionLog,
+                    "Reused instance must execute OnSpawn -> OnEnable without duplicate Awake"
+                );
+
+                reused.Despawn();
+            }
+            finally
+            {
+                SmartPool.Clear(realisticPrefab);
+                UnityEngine.Object.DestroyImmediate(realisticPrefab);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator DespawnAfter_UnscaledTime_DespawnsWhenTimeScaleIsZero()
+        {
+            float originalTimeScale = Time.timeScale;
+            try
+            {
+                Time.timeScale = 0f;
+
+                var instance = _prefab.Spawn();
+                Assert.IsTrue(instance.activeSelf);
+
+                // Schedule unscaled despawn after 0.1s
+                instance.DespawnAfter(0.1f, useUnscaledTime: true);
+
+                // Wait in real time using unscaled delta time
+                float elapsed = 0f;
+                while (elapsed < 0.35f && instance != null && instance.activeSelf)
+                {
+                    yield return null;
+                    elapsed += Time.unscaledDeltaTime;
+                }
+
+                Assert.IsFalse(instance.activeSelf, "Object should be despawned even when Time.timeScale is 0");
+            }
+            finally
+            {
+                // Always restore Time.timeScale even if assertions fail
+                Time.timeScale = originalTimeScale;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoClear_OnSceneUnloaded_ClearsSceneLocalPools()
+        {
+            var prefabLocal = new GameObject("Prefab_SceneLocal");
+            var prefabPersistent = new GameObject("Prefab_Persistent");
+            prefabLocal.SetActive(false);
+            prefabPersistent.SetActive(false);
+
+            try
+            {
+                SmartPool.SetSceneLocal(prefabLocal, true);
+                SmartPool.SetSceneLocal(prefabPersistent, false);
+
+                var instanceLocal = prefabLocal.Spawn();
+                var instancePersistent = prefabPersistent.Spawn();
+
+                Assert.IsTrue(instanceLocal.activeSelf);
+                Assert.IsTrue(instancePersistent.activeSelf);
+
+                // Simulate scene unload
+                SmartPoolManager.Instance.OnSceneUnloadedInternal(default);
+
+                // Active object from local pool should safely destroy on Despawn
+                Assert.DoesNotThrow(() =>
+                {
+                    instanceLocal.Despawn();
+                });
+                Assert.IsFalse(instanceLocal.activeSelf);
+
+                // Active object from persistent pool should return to pool normally
+                Assert.DoesNotThrow(() =>
+                {
+                    instancePersistent.Despawn();
+                });
+                Assert.IsFalse(instancePersistent.activeSelf);
+
+                // Persistent pool can spawn again
+                var nextPersistent = prefabPersistent.Spawn();
+                Assert.IsNotNull(nextPersistent);
+                Assert.IsTrue(nextPersistent.activeSelf);
+                nextPersistent.Despawn();
+
+                yield return null;
+
+                // Local instance should be destroyed by Unity's deferred destroy
+                Assert.IsTrue(instanceLocal == null, "instanceLocal should be destroyed because its pool was cleared");
+            }
+            finally
+            {
+                if (prefabLocal != null) UnityEngine.Object.DestroyImmediate(prefabLocal);
+                if (prefabPersistent != null) UnityEngine.Object.DestroyImmediate(prefabPersistent);
+            }
+        }
+
         private class TestLifecycleObserver : MonoBehaviour, IPoolable
         {
             public int Health { get; private set; } = 0;
@@ -384,6 +528,69 @@ namespace DZ.SmartPool.Tests
             public void OnDespawn()
             {
                 throw new InvalidOperationException("Simulated exception in OnDespawn");
+            }
+        }
+
+        private class TargetingSubComponent : MonoBehaviour
+        {
+            public bool WasReset { get; private set; }
+
+            public void ResetTarget()
+            {
+                WasReset = true;
+            }
+
+            public void SetDirty()
+            {
+                WasReset = false;
+            }
+        }
+
+        private class RealisticLifecycleOrderTracker : MonoBehaviour, IPoolable
+        {
+            public List<string> ExecutionLog { get; } = new List<string>();
+            public TargetingSubComponent CachedSubComponent { get; private set; }
+            public int AwakeCount { get; private set; }
+            public int OnSpawnCount { get; private set; }
+            public int OnEnableCount { get; private set; }
+            public bool SubComponentSawResetInOnSpawn { get; private set; }
+            public bool OnEnableSawCleanState { get; private set; }
+
+            private void Awake()
+            {
+                AwakeCount++;
+                ExecutionLog.Add("Awake");
+                CachedSubComponent = GetComponent<TargetingSubComponent>();
+            }
+
+            public void OnSpawn()
+            {
+                OnSpawnCount++;
+                ExecutionLog.Add("OnSpawn");
+                if (CachedSubComponent != null)
+                {
+                    CachedSubComponent.ResetTarget();
+                    SubComponentSawResetInOnSpawn = true;
+                }
+            }
+
+            private void OnEnable()
+            {
+                OnEnableCount++;
+                ExecutionLog.Add("OnEnable");
+                if (CachedSubComponent != null && CachedSubComponent.WasReset)
+                {
+                    OnEnableSawCleanState = true;
+                }
+            }
+
+            public void OnDespawn()
+            {
+                ExecutionLog.Add("OnDespawn");
+                if (CachedSubComponent != null)
+                {
+                    CachedSubComponent.SetDirty();
+                }
             }
         }
     }

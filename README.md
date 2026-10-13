@@ -77,8 +77,8 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
 
 <a id="performance"></a>
 ### 5. High Performance, Memory & Prewarming
-- **Zero GC Allocations**:
-  - Components (`IPoolable`, `Rigidbody`, `TrailRenderer`, `ParticleSystem`) are cached once upon initial instantiation. No runtime `GetComponent` or LINQ allocations during gameplay.
+- **Zero GC Allocations at Steady State**:
+  - Components (`IPoolable`, `Rigidbody`, `TrailRenderer`, `ParticleSystem`) are cached once upon initial instantiation. Zero runtime `GetComponent`, LINQ, or boxing allocations occur during steady-state `Spawn` and `Despawn` reuse cycles. (Initial instantiation, prewarming allocations, and user-supplied lambda closures are naturally excluded).
 - **Stack-Based Architecture ($O(1)$)**:
   - Internal `Stack<GameObject>` guarantees optimal push/pop performance.
 - **Prewarming API**:
