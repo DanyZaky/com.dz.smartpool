@@ -1,0 +1,3 @@
+# Ignore Unity metadata
+*.meta
+*.meta.temp
