@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using DZ.SmartPool;
+using Object = UnityEngine.Object;
 
 namespace DZ.SmartPool.Tests
 {
@@ -26,7 +27,7 @@ namespace DZ.SmartPool.Tests
             SmartPool.ClearAll();
             if (_prefab != null)
             {
-                Object.DestroyImmediate(_prefab);
+                UnityEngine.Object.DestroyImmediate(_prefab);
             }
         }
 
@@ -156,7 +157,7 @@ namespace DZ.SmartPool.Tests
             finally
             {
                 SmartPool.Clear(activePrefab);
-                Object.DestroyImmediate(activePrefab);
+                UnityEngine.Object.DestroyImmediate(activePrefab);
             }
         }
 
@@ -190,7 +191,7 @@ namespace DZ.SmartPool.Tests
             finally
             {
                 SmartPool.Clear(reentrantPrefab);
-                Object.DestroyImmediate(reentrantPrefab);
+                UnityEngine.Object.DestroyImmediate(reentrantPrefab);
             }
         }
 
@@ -230,7 +231,7 @@ namespace DZ.SmartPool.Tests
             finally
             {
                 SmartPool.Clear(throwingPrefab);
-                Object.DestroyImmediate(throwingPrefab);
+                UnityEngine.Object.DestroyImmediate(throwingPrefab);
             }
         }
 
@@ -272,8 +273,8 @@ namespace DZ.SmartPool.Tests
             }
             finally
             {
-                if (prefabA != null) Object.DestroyImmediate(prefabA);
-                if (prefabB != null) Object.DestroyImmediate(prefabB);
+                if (prefabA != null) UnityEngine.Object.DestroyImmediate(prefabA);
+                if (prefabB != null) UnityEngine.Object.DestroyImmediate(prefabB);
             }
         }
 
@@ -285,7 +286,7 @@ namespace DZ.SmartPool.Tests
 
             // 2. Spawn one instance and destroy it externally
             var activeInstance = _prefab.Spawn();
-            Object.DestroyImmediate(activeInstance);
+            UnityEngine.Object.DestroyImmediate(activeInstance);
 
             // 3. Despawning destroyed object should safely be ignored
             Assert.DoesNotThrow(() =>
@@ -296,7 +297,7 @@ namespace DZ.SmartPool.Tests
             // 4. Destroy an idle instance that was returned to the pool
             var idleInstance = _prefab.Spawn();
             idleInstance.Despawn();
-            Object.DestroyImmediate(idleInstance);
+            UnityEngine.Object.DestroyImmediate(idleInstance);
 
             // 5. Subsequent spawn should skip the null instance and return a valid active object
             var nextInstance = _prefab.Spawn();
