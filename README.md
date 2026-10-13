@@ -8,7 +8,7 @@ Designed for maximum developer ergonomics: no tedious scene setup, no manual man
 ---
 
 ### Quick Navigation
-[Key Features](#key-features) | [Installation](#installation) | [Quick Start](#quick-start) | [Compatibility](#compatibility) | [License](#license)
+[Key Features](#key-features) | [Installation](#installation) | [Quick Start](#quick-start) | [Changelog](CHANGELOG.md) | [Compatibility](#compatibility) | [License](#license)
 
 ---
 
@@ -294,6 +294,19 @@ void OnDestroy()
 - **Unity Versions**: Compatible with Unity 2021.3 LTS, 2022 LTS, 2023, and Unity 6 (6000.x+).
 - **Physics APIs**: Clean cross-version compatibility for `velocity` and `linearVelocity`.
 - **Platforms**: Supports all Unity platforms (PC, Mac, Linux, iOS, Android, WebGL, Consoles).
+
+<p align="right">
+  <a href="#author"><b>Next: Author -></b></a> | <a href="#smartpool-for-unity"><b>Back to Top</b></a>
+</p>
+
+---
+
+<a id="author"></a>
+## Author
+Developed by **Dany Zaky**
+- Website: [https://danyzaky.dev](https://danyzaky.dev)
+- GitHub: [https://github.com/DanyZaky](https://github.com/DanyZaky)
+- Repository: [https://github.com/DanyZaky/com.dz.smartpool](https://github.com/DanyZaky/com.dz.smartpool)
 
 <p align="right">
   <a href="#license"><b>Next: License -></b></a> | <a href="#smartpool-for-unity"><b>Back to Top</b></a>

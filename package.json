@@ -4,6 +4,9 @@
   "displayName": "SmartPool",
   "description": "Zero-setup, zero-GC, fluent extension-based object pooling plugin for Unity.",
   "unity": "2021.3",
+  "changelogUrl": "https://github.com/DanyZaky/com.dz.smartpool/blob/main/CHANGELOG.md",
+  "documentationUrl": "https://github.com/DanyZaky/com.dz.smartpool#readme",
+  "homepage": "https://github.com/DanyZaky/com.dz.smartpool",
   "keywords": [
     "pool",
     "pooling",
@@ -13,6 +16,7 @@
     "smartpool"
   ],
   "author": {
-    "name": "Dany Zaky"
+    "name": "Dany Zaky",
+    "url": "https://danyzaky.dev"
   }
 }
