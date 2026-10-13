@@ -1,3 +1,4 @@
+<a id="smartpool-for-unity"></a>
 # SmartPool for Unity
 
 A lightning-fast, zero-setup, zero-garbage-collection (Zero GC) object pooling solution for Unity.
@@ -6,8 +7,17 @@ Designed for maximum developer ergonomics: no tedious scene setup, no manual man
 
 ---
 
-## ✨ Key Features
+### Quick Navigation
+[Key Features](#key-features) | [Installation](#installation) | [Quick Start](#quick-start) | [Compatibility](#compatibility) | [License](#license)
 
+---
+
+<a id="key-features"></a>
+## Key Features
+
+> Jump to Feature: [1. Core API](#core-api) | [2. Auto Reset](#auto-reset) | [3. Lifecycle Hooks](#lifecycle-hooks) | [4. Smart Timers](#smart-timers) | [5. Performance](#performance) | [6. Safety](#safety) | [7. Scene Policies](#scene-policies)
+
+<a id="core-api"></a>
 ### 1. Core API & Ergonomics
 - **Drop-in Extension Methods**:
   - `prefab.Spawn()` - seamless replacement for `Instantiate()`.
@@ -19,12 +29,22 @@ Designed for maximum developer ergonomics: no tedious scene setup, no manual man
 - **Zero-Setup Out-of-the-Box**:
   - No manager prefabs to drag into your scenes and no singleton scripts to wire up. The root manager `[SmartPool_Root]` is automatically created behind the scenes on first use with `DontDestroyOnLoad`.
 
+[Next: 2. Automatic Component Reset ->](#auto-reset)
+
+---
+
+<a id="auto-reset"></a>
 ### 2. Automatic Component Reset (Anti-State Leakage)
 When an object is retrieved from the pool, SmartPool automatically restores its default state to prevent stale data bugs:
 - **Physics Reset**: `Rigidbody` and `Rigidbody2D` linear/angular velocities are reset to zero (fully compatible from Unity 2021.3 LTS through Unity 6 without obsolete warnings).
 - **Visual FX Reset**: `TrailRenderer` automatically calls `Clear()` to prevent trails from streaking across the screen from their previous positions. `ParticleSystem` automatically calls `Clear()` and `Play()`.
 - **Transform Consistency**: Automatically restores `localScale` and rotation to the original prefab defaults.
 
+[Next: 3. Lifecycle Hooks & Event Callbacks ->](#lifecycle-hooks)
+
+---
+
+<a id="lifecycle-hooks"></a>
 ### 3. Lifecycle Hooks & Event Callbacks
 - **`IPoolable` Interface**:
   - `OnSpawn()`: Triggered immediately when retrieved from pool and activated (ideal for resetting health, re-initializing AI, etc.).
@@ -35,6 +55,11 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
     instance.Despawn(onComplete: () => { /* custom cleanup */ });
     ```
 
+[Next: 4. Smart Timers & Delayed Despawn ->](#smart-timers)
+
+---
+
+<a id="smart-timers"></a>
 ### 4. Smart Timers & Delayed Despawn
 - **Fluent One-Liner Chaining**:
   - `prefab.Spawn(pos, rot).DespawnAfter(3.0f);`
@@ -46,6 +71,11 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
     effect.DespawnAfter(2.0f, useUnscaledTime: true);
     ```
 
+[Next: 5. High Performance, Memory & Prewarming ->](#performance)
+
+---
+
+<a id="performance"></a>
 ### 5. High Performance, Memory & Prewarming
 - **Zero GC Allocations**:
   - Components (`IPoolable`, `Rigidbody`, `TrailRenderer`, `ParticleSystem`) are cached once upon initial instantiation. No runtime `GetComponent` or LINQ allocations during gameplay.
@@ -66,6 +96,11 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
   - Clear a specific pool: `SmartPool.Clear(prefab);`
   - Clear all pools: `SmartPool.ClearAll();`
 
+[Next: 6. Safety & Hierarchy Organization ->](#safety)
+
+---
+
+<a id="safety"></a>
 ### 6. Safety & Hierarchy Organization
 - **Crash-Proof Fallback**:
   - If `.Despawn()` is mistakenly called on an object created via regular `Instantiate()`, SmartPool gracefully falls back to `Destroy()` without throwing errors.
@@ -79,6 +114,11 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
     SmartPool.ShowInHierarchy = false; // Uses HideFlags.HideInHierarchy
     ```
 
+[Next: 7. Scene Unload Policies ->](#scene-policies)
+
+---
+
+<a id="scene-policies"></a>
 ### 7. Scene Unload Policies
 - **Persistent by Default**:
   - Pools persist across scene loads (`DontDestroyOnLoad`).
@@ -93,9 +133,14 @@ When an object is retrieved from the pool, SmartPool automatically restores its 
     SmartPool.AutoClearOnSceneChange = true;
     ```
 
+<p align="right">
+  <a href="#installation"><b>Next: Installation -></b></a> | <a href="#smartpool-for-unity"><b>Back to Top</b></a>
+</p>
+
 ---
 
-## 📥 Installation
+<a id="installation"></a>
+## Installation
 
 ### Option 1: Unity Package Manager (UPM via Git URL)
 1. In the Unity Editor, open **Window** > **Package Manager**.
@@ -118,10 +163,18 @@ Alternatively, add the dependency directly to your project's `Packages/manifest.
 ### Option 2: Unity Asset Store
 - **Unity Asset Store**: Coming Soon
 
+<p align="right">
+  <a href="#quick-start"><b>Next: Quick Start & Usage Examples -></b></a> | <a href="#smartpool-for-unity"><b>Back to Top</b></a>
+</p>
+
 ---
 
-## 🚀 Quick Start & Usage Examples
+<a id="quick-start"></a>
+## Quick Start & Usage Examples
 
+> Jump to Example: [1. Spawning](#ex-spawn) | [2. Despawning](#ex-despawn) | [3. Lifecycle Hooks](#ex-lifecycle) | [4. Prewarming](#ex-prewarm)
+
+<a id="ex-spawn"></a>
 ### 1. Spawning Objects
 ```csharp
 using UnityEngine;
@@ -150,6 +203,11 @@ public class Gun : MonoBehaviour
 }
 ```
 
+[Next: 2. Despawning & Chaining ->](#ex-despawn)
+
+---
+
+<a id="ex-despawn"></a>
 ### 2. Despawning & Chaining
 ```csharp
 // Instant manual despawn
@@ -169,6 +227,11 @@ bulletComponentPrefab
     });
 ```
 
+[Next: 3. Implementing Lifecycle Hooks ->](#ex-lifecycle)
+
+---
+
+<a id="ex-lifecycle"></a>
 ### 3. Implementing Lifecycle Hooks (`IPoolable`)
 ```csharp
 using UnityEngine;
@@ -197,6 +260,11 @@ public class Bullet : MonoBehaviour, IPoolable
 }
 ```
 
+[Next: 4. Prewarming & Pool Management ->](#ex-prewarm)
+
+---
+
+<a id="ex-prewarm"></a>
 ### 4. Prewarming & Pool Management
 ```csharp
 void Start()
@@ -215,12 +283,28 @@ void OnDestroy()
 }
 ```
 
+<p align="right">
+  <a href="#compatibility"><b>Next: Compatibility -></b></a> | <a href="#smartpool-for-unity"><b>Back to Top</b></a>
+</p>
+
 ---
 
-## 📦 Compatibility
+<a id="compatibility"></a>
+## Compatibility
 - **Unity Versions**: Compatible with Unity 2021.3 LTS, 2022 LTS, 2023, and Unity 6 (6000.x+).
 - **Physics APIs**: Clean cross-version compatibility for `velocity` and `linearVelocity`.
 - **Platforms**: Supports all Unity platforms (PC, Mac, Linux, iOS, Android, WebGL, Consoles).
 
-## 📄 License
+<p align="right">
+  <a href="#license"><b>Next: License -></b></a> | <a href="#smartpool-for-unity"><b>Back to Top</b></a>
+</p>
+
+---
+
+<a id="license"></a>
+## License
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+<p align="right">
+  <a href="#smartpool-for-unity"><b>Back to Top</b></a>
+</p>
