@@ -10,8 +10,8 @@ Designed for maximum developer ergonomics: no tedious scene setup, no manual man
 
 ### 1. Core API & Ergonomics
 - **Drop-in Extension Methods**:
-  - `prefab.Spawn()` — seamless replacement for `Instantiate()`.
-  - `instance.Despawn()` — seamless replacement for `Destroy()`.
+  - `prefab.Spawn()` - seamless replacement for `Instantiate()`.
+  - `instance.Despawn()` - seamless replacement for `Destroy()`.
 - **Full Generic Support**:
   - `bulletPrefab.Spawn<Bullet>()` returns the `Bullet` component directly without type casting or manual `GetComponent` calls.
 - **Flexible Overloads**:
@@ -198,4 +198,4 @@ void OnDestroy()
 - **Platforms**: Supports all Unity platforms (PC, Mac, Linux, iOS, Android, WebGL, Consoles).
 
 ## 📄 License
-This project is licensed under the MIT License — see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
