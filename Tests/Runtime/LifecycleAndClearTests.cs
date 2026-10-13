@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using DZ.SmartPool;
 using Object = UnityEngine.Object;
@@ -451,6 +452,119 @@ namespace DZ.SmartPool.Tests
             }
         }
 
+        [Test]
+        public void Spawn_PrefabWithInactiveChild_RunsAwakeBeforeOnSpawnAndPreservesInactiveState()
+        {
+            // 1. Construct prefab with active root and inactive child
+            var prefab = new GameObject("PrefabWithInactiveChild");
+            var childGo = new GameObject("InactiveChild");
+            childGo.transform.SetParent(prefab.transform, false);
+            childGo.AddComponent<ChildDataComponent>();
+            childGo.AddComponent<InactiveChildTracker>();
+            childGo.SetActive(false); // Inactive child on prefab
+
+            try
+            {
+                // 2. Spawn instance
+                var instance = prefab.Spawn();
+                var instanceChild = instance.transform.Find("InactiveChild").gameObject;
+                var instanceTracker = instanceChild.GetComponent<InactiveChildTracker>();
+
+                // Awake must have run for child during Awake Pre-pass
+                Assert.AreEqual(1, instanceTracker.AwakeCount, "Inactive child component must have Awake() executed before spawn");
+                Assert.IsNotNull(instanceTracker.CachedData, "CachedData inside Awake() must not be null");
+                Assert.IsTrue(instanceTracker.OnSpawnSawValidCachedData, "OnSpawn must have observed initialized data from Awake");
+
+                // Child must still remain inactive until gameplay activates it
+                Assert.IsFalse(instanceChild.activeSelf, "Child GameObject must preserve its inactive state on spawn");
+                Assert.AreEqual(0, instanceTracker.OnEnableCount, "OnEnable must NOT run while child GameObject is still inactive");
+
+                // 3. Gameplay activates the child
+                instanceChild.SetActive(true);
+                Assert.AreEqual(1, instanceTracker.OnEnableCount, "OnEnable should run when child is explicitly activated in gameplay");
+                Assert.AreEqual(1, instanceTracker.AwakeCount, "Awake should not run again on child activation");
+
+                // 4. Despawn
+                instance.Despawn();
+
+                // 5. Spawn reused
+                var reused = prefab.Spawn();
+                var reusedChild = reused.transform.Find("InactiveChild").gameObject;
+                var reusedTracker = reusedChild.GetComponent<InactiveChildTracker>();
+
+                Assert.AreEqual(1, reusedTracker.AwakeCount, "Awake must never run again on reused instance");
+                Assert.AreEqual(2, reusedTracker.OnSpawnCount, "OnSpawn runs on second cycle");
+
+                reused.Despawn();
+            }
+            finally
+            {
+                SmartPool.Clear(prefab);
+                UnityEngine.Object.DestroyImmediate(prefab);
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AutoClear_RealSceneUnloaded_ClearsSceneLocalPools()
+        {
+            // Create a temporary scene dynamically in PlayMode
+            var tempScene = SceneManager.CreateScene("TestRealScene_" + Guid.NewGuid().ToString("N"));
+
+            var prefabLocal = new GameObject("Prefab_RealSceneLocal");
+            var prefabPersistent = new GameObject("Prefab_RealScenePersistent");
+            prefabLocal.SetActive(false);
+            prefabPersistent.SetActive(false);
+
+            try
+            {
+                SmartPool.SetSceneLocal(prefabLocal, true);
+                SmartPool.SetSceneLocal(prefabPersistent, false);
+
+                var instanceLocal = prefabLocal.Spawn();
+                var instancePersistent = prefabPersistent.Spawn();
+
+                Assert.IsTrue(instanceLocal.activeSelf);
+                Assert.IsTrue(instancePersistent.activeSelf);
+
+                // Unload the scene for real using Unity's native SceneManager
+                var unloadOp = SceneManager.UnloadSceneAsync(tempScene);
+                while (!unloadOp.isDone)
+                {
+                    yield return null;
+                }
+
+                // Active object from local pool should safely destroy on Despawn
+                Assert.DoesNotThrow(() =>
+                {
+                    instanceLocal.Despawn();
+                });
+                Assert.IsFalse(instanceLocal.activeSelf);
+
+                // Active object from persistent pool should return to pool normally
+                Assert.DoesNotThrow(() =>
+                {
+                    instancePersistent.Despawn();
+                });
+                Assert.IsFalse(instancePersistent.activeSelf);
+
+                // Persistent pool can spawn again
+                var nextPersistent = prefabPersistent.Spawn();
+                Assert.IsNotNull(nextPersistent);
+                Assert.IsTrue(nextPersistent.activeSelf);
+                nextPersistent.Despawn();
+
+                yield return null;
+
+                // Local instance should be destroyed by Unity's deferred destroy
+                Assert.IsTrue(instanceLocal == null, "instanceLocal should be destroyed because its pool was cleared");
+            }
+            finally
+            {
+                if (prefabLocal != null) UnityEngine.Object.DestroyImmediate(prefabLocal);
+                if (prefabPersistent != null) UnityEngine.Object.DestroyImmediate(prefabPersistent);
+            }
+        }
+
         private class TestLifecycleObserver : MonoBehaviour, IPoolable
         {
             public int Health { get; private set; } = 0;
@@ -591,6 +705,44 @@ namespace DZ.SmartPool.Tests
                 {
                     CachedSubComponent.SetDirty();
                 }
+            }
+        }
+
+        private class ChildDataComponent : MonoBehaviour
+        {
+            public int Value = 42;
+        }
+
+        private class InactiveChildTracker : MonoBehaviour, IPoolable
+        {
+            public ChildDataComponent CachedData { get; private set; }
+            public int AwakeCount { get; private set; }
+            public int OnSpawnCount { get; private set; }
+            public int OnEnableCount { get; private set; }
+            public bool OnSpawnSawValidCachedData { get; private set; }
+
+            private void Awake()
+            {
+                AwakeCount++;
+                CachedData = GetComponent<ChildDataComponent>();
+            }
+
+            public void OnSpawn()
+            {
+                OnSpawnCount++;
+                if (CachedData != null && CachedData.Value == 42)
+                {
+                    OnSpawnSawValidCachedData = true;
+                }
+            }
+
+            private void OnEnable()
+            {
+                OnEnableCount++;
+            }
+
+            public void OnDespawn()
+            {
             }
         }
     }

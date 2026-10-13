@@ -641,8 +641,24 @@ namespace DZ.SmartPool
                 instance.name = Prefab.name;
 
                 // Awake Pre-pass:
-                // Ensure all MonoBehaviours have Awake() executed once so component caching (e.g. GetComponent)
-                // is complete BEFORE any IPoolable.OnSpawn() is called, while strictly suppressing premature OnEnable().
+                // Ensure all MonoBehaviours in the entire hierarchy (including inactive child GameObjects)
+                // have Awake() executed once so component caching (e.g. GetComponent) is complete BEFORE
+                // any IPoolable.OnSpawn() is called, while strictly suppressing premature OnEnable().
+
+                // 1. Record originally inactive child GameObjects and temporarily activate them
+                var allTransforms = instance.GetComponentsInChildren<Transform>(true);
+                var originallyInactiveChildren = new List<GameObject>();
+                for (int i = 0; i < allTransforms.Length; i++)
+                {
+                    var childGo = allTransforms[i].gameObject;
+                    if (childGo != instance && !childGo.activeSelf)
+                    {
+                        originallyInactiveChildren.Add(childGo);
+                        childGo.SetActive(true);
+                    }
+                }
+
+                // 2. Record originally enabled MonoBehaviours and temporarily disable them
                 var behaviours = instance.GetComponentsInChildren<MonoBehaviour>(true);
                 var originallyEnabled = new bool[behaviours.Length];
                 for (int i = 0; i < behaviours.Length; i++)
@@ -655,10 +671,10 @@ namespace DZ.SmartPool
                     }
                 }
 
-                // Temporarily parent to the active SmartPoolManager root and activate GameObject.
+                // 3. Temporarily parent to the active SmartPoolManager root and activate GameObject.
                 // In Unity, when an active GameObject is in an active hierarchy:
-                // 1. Unity calls Awake() on all attached MonoBehaviours (even if enabled == false).
-                // 2. Unity DOES NOT call OnEnable() because enabled == false.
+                // - Unity calls Awake() on all attached MonoBehaviours in root and all children (even if enabled == false).
+                // - Unity DOES NOT call OnEnable() because enabled == false.
                 instance.transform.SetParent(SmartPoolManager.Instance.transform, false);
                 instance.SetActive(true);
 
@@ -682,15 +698,24 @@ namespace DZ.SmartPool
                     }
                 }
 
-                // Deactivate instance while in hierarchy before moving to RootContainer
+                // 4. Deactivate instance while in hierarchy before moving to RootContainer
                 instance.SetActive(false);
+
+                // 5. Restore originally inactive child GameObjects to inactive state
+                for (int i = 0; i < originallyInactiveChildren.Count; i++)
+                {
+                    if (originallyInactiveChildren[i] != null)
+                    {
+                        originallyInactiveChildren[i].SetActive(false);
+                    }
+                }
 
                 if (RootContainer != null)
                 {
                     instance.transform.SetParent(RootContainer, false);
                 }
 
-                // Restore original enabled states while instance is safely inactive in RootContainer.
+                // 6. Restore original enabled states while instance is safely inactive in RootContainer.
                 // Because activeSelf is false, restoring enabled does not trigger OnEnable.
                 for (int i = 0; i < behaviours.Length; i++)
                 {
